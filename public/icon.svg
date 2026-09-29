@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="cyber-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10b981" />
+      <stop offset="50%" stop-color="#06b6d4" />
+      <stop offset="100%" stop-color="#3b82f6" />
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#090d16" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background Rect -->
+  <rect width="512" height="512" rx="128" fill="#090d16" />
+  <circle cx="256" cy="256" r="220" fill="url(#glow)" />
+  
+  <!-- Optical Ring -->
+  <circle cx="256" cy="256" r="200" stroke="url(#cyber-grad)" stroke-width="8" stroke-dasharray="16 12" />
+  <circle cx="256" cy="256" r="160" stroke="#10b981" stroke-width="4" stroke-opacity="0.4" />
+  
+  <!-- QR Diode Center Grid -->
+  <!-- Top-Left QR Marker -->
+  <rect x="140" y="140" width="80" height="80" rx="16" fill="none" stroke="#10b981" stroke-width="12" />
+  <rect x="164" y="164" width="32" height="32" rx="8" fill="#10b981" />
+  
+  <!-- Top-Right QR Marker -->
+  <rect x="292" y="140" width="80" height="80" rx="16" fill="none" stroke="#06b6d4" stroke-width="12" />
+  <rect x="316" y="164" width="32" height="32" rx="8" fill="#06b6d4" />
+  
+  <!-- Bottom-Left QR Marker -->
+  <rect x="140" y="292" width="80" height="80" rx="16" fill="none" stroke="#3b82f6" stroke-width="12" />
+  <rect x="164" y="316" width="32" height="32" rx="8" fill="#3b82f6" />
+
+  <!-- Center Optical Ray / Data Diode Symbol -->
+  <path d="M256 220 L310 290 L202 290 Z" fill="url(#cyber-grad)" />
+  <circle cx="256" cy="336" r="18" fill="#10b981" />
+  <path d="M220 370 L292 370" stroke="#06b6d4" stroke-width="8" stroke-linecap="round" />
+</svg>

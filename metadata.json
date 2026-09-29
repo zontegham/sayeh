@@ -1,0 +1,6 @@
+{
+  "name": "AirDiode - Air-Gap Secure Optical Data Transfer",
+  "description": "سامانه انتقال امن داده‌های Air-Gap از طریق کیوآرکد و دوربین بدون اتصال فیزیکی یا شبکه با رمزنگاری AES-256",
+  "requestFramePermissions": ["camera"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
