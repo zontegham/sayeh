@@ -23,26 +23,26 @@ export const OfflinePwaExportModal: React.FC<Props> = ({ isOpen, onClose, lang }
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-      <div className="w-full max-w-2xl rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl text-slate-200 max-h-[90vh] overflow-y-auto space-y-5">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-xs p-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl text-slate-800 dark:text-slate-200 max-h-[90vh] overflow-y-auto space-y-5 transition-colors">
+        <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
           <div className="flex items-center gap-2">
-            <Radio className="w-5 h-5 text-emerald-400" />
-            <h3 className="text-base font-bold text-white">
+            <Radio className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">
               {lang === 'fa' 
                 ? 'راهنمای راه‌اندازی نسخه ویندوزی و آفلاین (Air-Gap Deployment)' 
                 : 'Windows & Offline Air-Gap Deployment Guide'}
             </h3>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-white p-1">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-700 dark:hover:text-white p-1 cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="space-y-4 text-xs leading-relaxed text-slate-300">
+        <div className="space-y-4 text-xs leading-relaxed text-slate-600 dark:text-slate-300">
           {/* Method 1 */}
-          <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2">
-            <div className="flex items-center gap-2 text-emerald-400 font-bold">
+          <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-200 dark:border-slate-800 space-y-2">
+            <div className="flex items-center gap-2 text-emerald-600 dark:text-emerald-400 font-bold">
               <Monitor className="w-4 h-4" />
               <span>
                 {lang === 'fa' 

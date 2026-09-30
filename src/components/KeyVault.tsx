@@ -35,8 +35,8 @@ export const KeyVault: React.FC<Props> = ({
     return [
       {
         id: 'default-master',
-        name: lang === 'fa' ? 'کلید پیش‌فرض پدافند' : 'Default Security Key',
-        keyHex: 'AirDiode#SecureKey2026!',
+        name: lang === 'fa' ? 'کلید پیش‌فرض پدافند سایه' : 'Sayeh Default Security Key',
+        keyHex: 'Sayeh#SecureKey2026!',
         createdAt: Date.now(),
         notes: 'AES-256 Pre-Shared Key',
       },
@@ -241,16 +241,16 @@ export const KeyVault: React.FC<Props> = ({
 
       {/* New Key Modal */}
       {showKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-          <div className="w-full max-w-md rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl text-slate-200 space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Key className="w-4 h-4 text-amber-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-xs p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl text-slate-800 dark:text-slate-200 space-y-4 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-3">
+              <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Key className="w-4 h-4 text-amber-500" />
                 {lang === 'fa' ? 'ایجاد یا ثبت کلید رمزنگاری جدید' : 'Create or Import New Key'}
               </h3>
               <button
                 onClick={() => setShowKeyModal(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-700 dark:hover:text-white cursor-pointer p-1"
               >
                 ✕
               </button>
@@ -309,32 +309,32 @@ export const KeyVault: React.FC<Props> = ({
 
       {/* Optical Key QR Display Modal */}
       {qrKeyModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-slate-900 border border-slate-700 p-6 shadow-2xl text-center space-y-4">
-            <h3 className="text-sm font-bold text-white flex items-center justify-center gap-2">
-              <QrCode className="w-4 h-4 text-cyan-400" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 dark:bg-black/80 backdrop-blur-xs p-4">
+          <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-6 shadow-2xl text-center space-y-4 text-slate-800 dark:text-slate-200 transition-colors">
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white flex items-center justify-center gap-2">
+              <QrCode className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
               {lang === 'fa' ? 'انتقال چشمی کلید مشترک' : 'Optical Key QR Transfer'}
             </h3>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500 dark:text-slate-400">
               {lang === 'fa'
                 ? 'دوربین سیستم دوم را به این کیوآرکد نزدیک کنید تا کلید رمزنگاری بدون واسطه شبکه همگام شود.'
                 : 'Point the receiver system camera at this QR code to sync the encryption key optically.'}
             </p>
 
-            <div className="p-4 bg-white rounded-2xl inline-block shadow-lg mx-auto w-56 h-56">
+            <div className="p-4 bg-white rounded-2xl inline-block shadow-lg mx-auto w-56 h-56 border border-slate-200 dark:border-slate-700">
               <div
                 className="w-full h-full flex items-center justify-center select-none"
                 dangerouslySetInnerHTML={{ __html: keyQrSvg }}
               />
             </div>
 
-            <p className="text-xs font-mono text-amber-300 font-bold truncate">
+            <p className="text-xs font-mono text-amber-600 dark:text-amber-300 font-bold truncate">
               {qrKeyModal.name}
             </p>
 
             <button
               onClick={() => setQrKeyModal(null)}
-              className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-medium transition cursor-pointer"
+              className="w-full py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-white text-xs font-medium transition cursor-pointer"
             >
               {lang === 'fa' ? 'بستن' : 'Close'}
             </button>

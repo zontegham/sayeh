@@ -68,6 +68,8 @@ export const Receiver: React.FC<Props> = ({
   const [cameraDevices, setCameraDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>('');
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [cameraRetryTrigger, setCameraRetryTrigger] = useState<number>(0);
+  const [cameraErrorMessage, setCameraErrorMessage] = useState<'permission_denied' | 'not_found' | 'insecure_context' | 'unavailable' | null>(null);
   const [lastScannedChunkTime, setLastScannedChunkTime] = useState<number>(0);
 
   // Packet Assembly states
@@ -93,6 +95,9 @@ export const Receiver: React.FC<Props> = ({
   // File scan error/status
   const [fileScanStatus, setFileScanStatus] = useState<string | null>(null);
 
+  // Optical Calibration detection
+  const [calibrationDetected, setCalibrationDetected] = useState<boolean>(false);
+
   // Simulation state
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
@@ -102,12 +107,15 @@ export const Receiver: React.FC<Props> = ({
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationFrameRef = useRef<number | null>(null);
   const progressRef = useRef<AssemblyProgress | null>(null);
+  const isProcessingRef = useRef<boolean>(false);
+  const barcodeDetectorRef = useRef<any>(null);
   progressRef.current = progress;
 
   // Enumerate cameras
   useEffect(() => {
     async function listCameras() {
       try {
+        if (!navigator.mediaDevices?.enumerateDevices) return;
         const devices = await navigator.mediaDevices.enumerateDevices();
         const videoInputs = devices.filter((d) => d.kind === 'videoinput');
         setCameraDevices(videoInputs);
@@ -115,7 +123,7 @@ export const Receiver: React.FC<Props> = ({
           setSelectedDeviceId(videoInputs[0].deviceId);
         }
       } catch (e) {
-        console.error('Error listing cameras:', e);
+        console.warn('Notice querying camera devices:', e);
       }
     }
     listCameras();
@@ -124,9 +132,17 @@ export const Receiver: React.FC<Props> = ({
   // Start / Stop Video Stream
   useEffect(() => {
     let currentStream: MediaStream | null = null;
+    let isCancelled = false;
 
     async function startCamera() {
       if (!isScanning || sourceMode !== 'camera') return;
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setHasCameraPermission(false);
+        setCameraErrorMessage('insecure_context');
+        return;
+      }
+
       try {
         const constraints: MediaStreamConstraints = {
           video: {
@@ -139,30 +155,55 @@ export const Receiver: React.FC<Props> = ({
         };
 
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        if (isCancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+
         currentStream = stream;
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
           videoRef.current.setAttribute('playsinline', 'true');
-          await videoRef.current.play();
+          await videoRef.current.play().catch(() => {});
           setHasCameraPermission(true);
+          setCameraErrorMessage(null);
         }
-      } catch (err) {
-        console.error('Camera access failed:', err);
+      } catch (err: any) {
+        const errName = err?.name || '';
+        const errMsg = err?.message || '';
+        console.warn('Camera stream notice:', errName || errMsg);
+
         setHasCameraPermission(false);
+        if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError' || errMsg.includes('Permission denied')) {
+          setCameraErrorMessage('permission_denied');
+        } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError' || errMsg.includes('not found')) {
+          setCameraErrorMessage('not_found');
+        } else {
+          setCameraErrorMessage('unavailable');
+        }
       }
     }
 
     startCamera();
 
     return () => {
+      isCancelled = true;
       if (currentStream) {
         currentStream.getTracks().forEach((track) => track.stop());
       }
     };
-  }, [isScanning, selectedDeviceId, sourceMode]);
+  }, [isScanning, selectedDeviceId, sourceMode, cameraRetryTrigger]);
 
   // Process a raw scanned QR text
   const handleIngestQrString = useCallback((rawText: string) => {
+    // Check if scanned QR is an Optical Calibration Pattern
+    if (rawText.includes('SAYEH-TEST-PASS') || rawText.includes('SAYEH-CALIBRATION')) {
+      soundFx.playSuccessChime();
+      setCalibrationDetected(true);
+      setTimeout(() => setCalibrationDetected(false), 4000);
+      return true;
+    }
+
     const packet = parseScannedChunk(rawText);
     if (!packet) return false;
 
@@ -187,9 +228,14 @@ export const Receiver: React.FC<Props> = ({
     return true;
   }, []);
 
-  // Real-time Frame Scanning Loop with jsQR (downsampled for high FPS and low CPU)
-  const scanFrame = useCallback(() => {
+  // Real-time Frame Scanning Loop (Hardware BarcodeDetector with jsQR Fallback)
+  const scanFrame = useCallback(async () => {
     if (!isScanning || sourceMode !== 'camera' || !videoRef.current || !canvasRef.current) {
+      animationFrameRef.current = requestAnimationFrame(scanFrame);
+      return;
+    }
+
+    if (isProcessingRef.current) {
       animationFrameRef.current = requestAnimationFrame(scanFrame);
       return;
     }
@@ -199,51 +245,103 @@ export const Receiver: React.FC<Props> = ({
     const overlay = overlayCanvasRef.current;
 
     if (video.readyState === video.HAVE_ENOUGH_DATA && video.videoWidth > 0) {
-      // Downsample to max width 640px to speed up jsQR by 10x
-      const maxWidth = 640;
-      const scale = Math.min(1, maxWidth / video.videoWidth);
-      const procW = Math.round(video.videoWidth * scale);
-      const procH = Math.round(video.videoHeight * scale);
+      isProcessingRef.current = true;
+      try {
+        let detectedMulti = false;
 
-      canvas.width = procW;
-      canvas.height = procH;
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-
-      if (ctx) {
-        ctx.drawImage(video, 0, 0, procW, procH);
-        const imageData = ctx.getImageData(0, 0, procW, procH);
-
-        // Run jsQR
-        const code = jsQR(imageData.data, procW, procH, {
-          inversionAttempts: 'dontInvert',
-        });
-
-        // Overlay drawing for bounding box
-        if (overlay) {
-          overlay.width = video.videoWidth;
-          overlay.height = video.videoHeight;
-          const oCtx = overlay.getContext('2d');
-          if (oCtx) {
-            oCtx.clearRect(0, 0, overlay.width, overlay.height);
-
-            if (code) {
-              const invScale = 1 / scale;
-              oCtx.beginPath();
-              oCtx.moveTo(code.location.topLeftCorner.x * invScale, code.location.topLeftCorner.y * invScale);
-              oCtx.lineTo(code.location.topRightCorner.x * invScale, code.location.topRightCorner.y * invScale);
-              oCtx.lineTo(code.location.bottomRightCorner.x * invScale, code.location.bottomRightCorner.y * invScale);
-              oCtx.lineTo(code.location.bottomLeftCorner.x * invScale, code.location.bottomLeftCorner.y * invScale);
-              oCtx.closePath();
-              oCtx.lineWidth = 5;
-              oCtx.strokeStyle = '#10b981'; // Emerald
-              oCtx.stroke();
+        // 1. Native Hardware BarcodeDetector: Decodes ALL QRs in the frame simultaneously
+        if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+          try {
+            if (!barcodeDetectorRef.current) {
+              barcodeDetectorRef.current = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
             }
+            const barcodes = await barcodeDetectorRef.current.detect(video);
+            if (barcodes && barcodes.length > 0) {
+              detectedMulti = true;
+              if (overlay) {
+                overlay.width = video.videoWidth;
+                overlay.height = video.videoHeight;
+                const oCtx = overlay.getContext('2d');
+                if (oCtx) {
+                  oCtx.clearRect(0, 0, overlay.width, overlay.height);
+                  oCtx.lineWidth = 4;
+                  oCtx.strokeStyle = '#10b981';
+                  barcodes.forEach((bc: any) => {
+                    if (bc.cornerPoints && bc.cornerPoints.length >= 4) {
+                      oCtx.beginPath();
+                      oCtx.moveTo(bc.cornerPoints[0].x, bc.cornerPoints[0].y);
+                      for (let i = 1; i < bc.cornerPoints.length; i++) {
+                        oCtx.lineTo(bc.cornerPoints[i].x, bc.cornerPoints[i].y);
+                      }
+                      oCtx.closePath();
+                      oCtx.stroke();
+                    }
+                  });
+                }
+              }
+              for (const bc of barcodes) {
+                if (bc.rawValue) {
+                  handleIngestQrString(bc.rawValue);
+                }
+              }
+            }
+          } catch {
+            // Hardware detector fallback to jsQR
           }
         }
 
-        if (code && code.data) {
-          handleIngestQrString(code.data);
+        // 2. High-speed jsQR fallback if BarcodeDetector not supported or found nothing
+        if (!detectedMulti) {
+          const maxWidth = 640;
+          const scale = Math.min(1, maxWidth / video.videoWidth);
+          const procW = Math.round(video.videoWidth * scale);
+          const procH = Math.round(video.videoHeight * scale);
+
+          canvas.width = procW;
+          canvas.height = procH;
+          const ctx = canvas.getContext('2d', { willReadFrequently: true });
+
+          if (ctx) {
+            ctx.drawImage(video, 0, 0, procW, procH);
+            const imageData = ctx.getImageData(0, 0, procW, procH);
+
+            // Run jsQR
+            const code = jsQR(imageData.data, procW, procH, {
+              inversionAttempts: 'dontInvert',
+            });
+
+            // Overlay drawing for bounding box
+            if (overlay) {
+              overlay.width = video.videoWidth;
+              overlay.height = video.videoHeight;
+              const oCtx = overlay.getContext('2d');
+              if (oCtx) {
+                oCtx.clearRect(0, 0, overlay.width, overlay.height);
+
+                if (code) {
+                  const invScale = 1 / scale;
+                  oCtx.beginPath();
+                  oCtx.moveTo(code.location.topLeftCorner.x * invScale, code.location.topLeftCorner.y * invScale);
+                  oCtx.lineTo(code.location.topRightCorner.x * invScale, code.location.topRightCorner.y * invScale);
+                  oCtx.lineTo(code.location.bottomRightCorner.x * invScale, code.location.bottomRightCorner.y * invScale);
+                  oCtx.lineTo(code.location.bottomLeftCorner.x * invScale, code.location.bottomLeftCorner.y * invScale);
+                  oCtx.closePath();
+                  oCtx.lineWidth = 5;
+                  oCtx.strokeStyle = '#10b981'; // Emerald
+                  oCtx.stroke();
+                }
+              }
+            }
+
+            if (code && code.data) {
+              handleIngestQrString(code.data);
+            }
+          }
         }
+      } catch (e) {
+        console.error('Scan error:', e);
+      } finally {
+        isProcessingRef.current = false;
       }
     }
 
@@ -502,20 +600,20 @@ export const Receiver: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Header Banner */}
-      <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900/50 to-cyan-950/20 p-5 shadow-xl">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-r dark:from-slate-900/90 dark:via-slate-900/50 dark:to-cyan-950/20 p-5 shadow-sm dark:shadow-xl transition-colors">
         <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400">
+            <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-600 dark:text-cyan-400">
               <Camera className="w-6 h-6 animate-pulse" />
             </div>
             <div>
-              <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+              <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 {lang === 'fa' ? 'گیرنده نوری دوربین (سیستم آفلاین / مقصد)' : 'Optical Camera Receiver (Destination System)'}
-                <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
-                  DIODE RX v2.4
+                <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-cyan-100 dark:bg-cyan-500/20 text-cyan-700 dark:text-cyan-300 border border-cyan-200 dark:border-cyan-500/40">
+                  {lang === 'fa' ? 'سایه RX' : 'SAYEH RX'}
                 </span>
               </h1>
-              <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-2xl leading-relaxed">
                 {lang === 'fa'
                   ? 'اسکن با وب‌کم، استخراج فریم‌های کیوآر، بازسازی ماتریس پکت‌ها و رمزگشایی بی‌درنگ AES-256 با امکان ارسال به پورت محلی.'
                   : 'Fast optical scan via webcam or image, real-time packet reassembly, authenticated AES-256 decryption, and offline forwarding.'}
@@ -528,8 +626,8 @@ export const Receiver: React.FC<Props> = ({
               onClick={() => setIsScanning(!isScanning)}
               className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition cursor-pointer ${
                 isScanning
-                  ? 'bg-amber-500/20 border-amber-500/40 text-amber-300 hover:bg-amber-500/30'
-                  : 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/30'
+                  ? 'bg-amber-100 dark:bg-amber-500/20 border-amber-300 dark:border-amber-500/40 text-amber-800 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-500/30'
+                  : 'bg-emerald-100 dark:bg-emerald-500/20 border-emerald-300 dark:border-emerald-500/40 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-200 dark:hover:bg-emerald-500/30'
               }`}
             >
               {isScanning ? (
@@ -548,7 +646,7 @@ export const Receiver: React.FC<Props> = ({
             {(progress || decryptedData) && (
               <button
                 onClick={handleReset}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-xs text-slate-300 transition cursor-pointer"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-slate-300 text-xs transition cursor-pointer"
                 title={lang === 'fa' ? 'پاکسازی و اسکن جدید' : 'Clear & Scan New'}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
@@ -562,16 +660,16 @@ export const Receiver: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Viewfinder & Input Mode (Cols 7) */}
         <div className="lg:col-span-7 space-y-4">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur-xs p-5 shadow-lg">
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 backdrop-blur-xs p-5 shadow-sm dark:shadow-lg transition-colors">
             {/* Mode selection: Live Camera vs Image File */}
-            <div className="flex items-center justify-between mb-4 border-b border-slate-800/80 pb-3">
-              <div className="flex items-center p-1 rounded-lg bg-slate-800 text-xs">
+            <div className="flex items-center justify-between mb-4 border-b border-slate-200 dark:border-slate-800/80 pb-3">
+              <div className="flex items-center p-1 rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs">
                 <button
                   onClick={() => setSourceMode('camera')}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
                     sourceMode === 'camera'
-                      ? 'bg-cyan-600 text-white font-medium'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-cyan-600 text-white font-medium shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <Camera className="w-3.5 h-3.5" />
@@ -581,8 +679,8 @@ export const Receiver: React.FC<Props> = ({
                   onClick={() => setSourceMode('file')}
                   className={`flex items-center gap-1.5 px-3 py-1 rounded-md transition cursor-pointer ${
                     sourceMode === 'file'
-                      ? 'bg-cyan-600 text-white font-medium'
-                      : 'text-slate-400 hover:text-white'
+                      ? 'bg-cyan-600 text-white font-medium shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                   }`}
                 >
                   <ImageIcon className="w-3.5 h-3.5" />
@@ -608,6 +706,26 @@ export const Receiver: React.FC<Props> = ({
             {/* Viewfinder Container */}
             {sourceMode === 'camera' ? (
               <div className="relative aspect-video w-full rounded-xl overflow-hidden bg-slate-950 border-2 border-slate-800 flex items-center justify-center">
+                {/* Optical Calibration Verified Toast */}
+                {calibrationDetected && (
+                  <div className="absolute top-3 left-3 right-3 z-30 p-2.5 sm:p-3 rounded-xl bg-emerald-600/95 text-white shadow-2xl backdrop-blur-md flex items-center justify-between border border-emerald-400 animate-in fade-in slide-in-from-top-2">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-5 h-5 text-emerald-200 animate-bounce" />
+                      <div>
+                        <div className="text-xs font-bold font-sans">
+                          {lang === 'fa' ? '🎯 الگوی کالیبراسیون اپتیکال با موفقیت خوانده شد!' : '🎯 Optical Calibration Pattern Verified!'}
+                        </div>
+                        <div className="text-[11px] opacity-90">
+                          {lang === 'fa' ? 'روشنایی، کنتراست و فاصله دوربین کاملاً ایده‌آل و آماده انتقال است.' : 'Screen brightness, contrast & camera distance are optimal.'}
+                        </div>
+                      </div>
+                    </div>
+                    <span className="hidden sm:inline-block text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/30 font-bold border border-emerald-300/40">
+                      CALIB PASS
+                    </span>
+                  </div>
+                )}
+
                 <video
                   ref={videoRef}
                   className="w-full h-full object-cover"
@@ -647,16 +765,71 @@ export const Receiver: React.FC<Props> = ({
 
                 {/* Camera Permission Error Overlay */}
                 {hasCameraPermission === false && (
-                  <div className="absolute inset-0 bg-slate-950/90 flex flex-col items-center justify-center p-6 text-center">
-                    <AlertOctagon className="w-10 h-10 text-rose-500 mb-2" />
-                    <p className="text-sm font-bold text-white mb-1">
-                      {lang === 'fa' ? 'عدم دسترسی به دوربین' : 'Camera Access Denied'}
+                  <div className="absolute inset-0 bg-slate-950/95 flex flex-col items-center justify-center p-6 text-center z-20">
+                    <div className="w-12 h-12 rounded-2xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-500 mb-3 shadow-lg">
+                      <AlertOctagon className="w-7 h-7" />
+                    </div>
+                    <p className="text-sm sm:text-base font-bold text-white mb-1">
+                      {cameraErrorMessage === 'not_found'
+                        ? (lang === 'fa' ? 'هیچ وب‌کم یا دوربینی شناسایی نشد' : 'No Camera Detected')
+                        : cameraErrorMessage === 'insecure_context'
+                        ? (lang === 'fa' ? 'محیط مرورگر اجازه وب‌کم مستقیم را نمی‌دهد' : 'Camera API Restricted in this Context')
+                        : (lang === 'fa' ? 'دسترسی به دوربین توسط مرورگر داده نشد' : 'Camera Access Permission Required')}
                     </p>
-                    <p className="text-xs text-slate-400 max-w-sm">
-                      {lang === 'fa'
-                        ? 'لطفاً در مرورگر اجازه دسترسی به دوربین را صادر کنید، یا از گزینه اسکن فایل/تصویر استفاده فرمایید.'
-                        : 'Please grant camera access in browser permissions or use the Image Upload scanner.'}
+                    <p className="text-xs text-slate-300 max-w-md mb-4 leading-relaxed">
+                      {cameraErrorMessage === 'permission_denied'
+                        ? (lang === 'fa'
+                            ? 'برای اسکن زنده، در نوار آدرس مرورگر روی علامت قفل 🔒 کلیک کرده و Camera را روی «Allow» قرار دهید، یا از دکمه تلاش مجدد استفاده فرمایید.'
+                            : 'To scan live QR streams, click the lock 🔒 icon in the browser address bar and set Camera to Allow.')
+                        : (lang === 'fa'
+                            ? 'می‌توانید به سادگی از طریق بارگذاری اسکرین‌شات یا حالت شبیه‌سازی، پکت‌ها را دریافت کنید.'
+                            : 'You can alternatively scan an image file or test with simulated Air-Gap transmission.')}
                     </p>
+
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      <button
+                        onClick={() => {
+                          setHasCameraPermission(null);
+                          setCameraErrorMessage(null);
+                          setIsScanning(true);
+                          setCameraRetryTrigger((c) => c + 1);
+                        }}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-bold transition cursor-pointer shadow-md"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5" />
+                        <span>{lang === 'fa' ? 'تلاش مجدد و فعال‌سازی' : 'Retry Permission'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => setSourceMode('file')}
+                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition cursor-pointer shadow-md"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>{lang === 'fa' ? 'تغییر به اسکن از تصویر' : 'Switch to Image Upload'}</span>
+                      </button>
+
+                      <button
+                        onClick={() => {
+                          runSimulatedTransfer({
+                            version: 1,
+                            transferId: 'AIR-SIM-' + Date.now().toString(36),
+                            totalBytes: 520,
+                            fileName: 'AirDiode_Security_Policy.pdf',
+                            fileType: 'application/pdf',
+                            ciphertext: btoa('AirDiode optical air-gap simulation demonstration payload successfully transmitted through optical diode simulation.'),
+                            iv: '1234567890abcdef',
+                            salt: 'fedcba0987654321',
+                            hash: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                            timestamp: Date.now(),
+                          });
+                        }}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-950/80 hover:bg-emerald-900 border border-emerald-700/60 text-emerald-300 text-xs font-semibold transition cursor-pointer"
+                        title={lang === 'fa' ? 'تست جریان دریافت بدون نیاز به دوربین' : 'Test receiver workflow without physical camera'}
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        <span>{lang === 'fa' ? 'تست با شبیه‌سازی' : 'Test Simulation'}</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -764,19 +937,19 @@ export const Receiver: React.FC<Props> = ({
         {/* Right Column: Decryption & Offline Dispatcher (Cols 5) */}
         <div className="lg:col-span-5 space-y-6">
           {/* Completion Status & Decryption Prompt */}
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur-xs p-5 shadow-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <span className="text-sm font-semibold text-white flex items-center gap-2">
-                <Lock className="w-4 h-4 text-emerald-400" />
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 backdrop-blur-xs p-5 shadow-sm dark:shadow-lg space-y-4 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-3">
+              <span className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
                 {lang === 'fa' ? 'رمزگشایی و اصالت‌سنجی' : 'Decryption & Integrity'}
               </span>
 
               {isComplete ? (
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-emerald-100 dark:bg-emerald-500/20 text-emerald-800 dark:text-emerald-400 border border-emerald-300 dark:border-emerald-500/30">
                   100% CAPTURED
                 </span>
               ) : (
-                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-slate-800 text-slate-400">
+                <span className="px-2.5 py-0.5 rounded text-[11px] font-mono bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400">
                   {lang === 'fa' ? 'در انتظار فریم‌ها' : 'WAITING'}
                 </span>
               )}
@@ -784,7 +957,7 @@ export const Receiver: React.FC<Props> = ({
 
             {/* Passphrase Input */}
             <div>
-              <label className="text-xs text-slate-300 font-medium block mb-1.5">
+              <label className="text-xs text-slate-700 dark:text-slate-300 font-medium block mb-1.5">
                 {lang === 'fa' ? 'کلید گذرواژه جهت رمزگشایی AES-256:' : 'AES-256 Decryption Key:'}
               </label>
               <div className="flex gap-2">
@@ -793,7 +966,7 @@ export const Receiver: React.FC<Props> = ({
                   value={passphrase}
                   onChange={(e) => setPassphrase(e.target.value)}
                   placeholder={lang === 'fa' ? 'کلید یا پسورد را وارد کنید...' : 'Enter decryption key...'}
-                  className="w-full rounded-xl bg-slate-950/80 border border-slate-800 px-3 py-2 text-xs font-mono text-white placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
+                  className="w-full rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400 dark:placeholder:text-slate-600 focus:outline-none focus:border-cyan-500"
                 />
                 {assembledEnvelope && (
                   <button
@@ -817,34 +990,34 @@ export const Receiver: React.FC<Props> = ({
 
             {/* Integrity Verified Badge */}
             {decryptedData && decryptedData.verified && (
-              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between">
+              <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30 text-emerald-800 dark:text-emerald-300 text-xs flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
                   <span>
                     {lang === 'fa' ? 'اصالت داده تایید شد (SHA-256 Match)' : 'Integrity verified (SHA-256 Valid)'}
                   </span>
                 </div>
-                <span className="font-mono text-[10px] text-emerald-400">GCM-AUTH-OK</span>
+                <span className="font-mono text-[10px] text-emerald-700 dark:text-emerald-400 font-bold">GCM-AUTH-OK</span>
               </div>
             )}
           </div>
 
           {/* Decrypted Payload Result Card */}
           {decryptedData && (
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur-xs p-5 shadow-lg space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-                <span className="text-sm font-semibold text-white flex items-center gap-2">
-                  <FileCode className="w-4 h-4 text-cyan-400" />
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 backdrop-blur-xs p-5 shadow-sm dark:shadow-lg space-y-4 transition-colors">
+              <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-3">
+                <span className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                  <FileCode className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                   {decryptedData.fileName || (lang === 'fa' ? 'محتوای دریافتی' : 'Received Content')}
                 </span>
 
                 <div className="flex items-center gap-1.5">
                   <button
                     onClick={handleCopy}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition cursor-pointer"
+                    className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:border-slate-700 dark:text-slate-300 text-xs transition cursor-pointer"
                     title={lang === 'fa' ? 'کپی در کلیپ‌بورد' : 'Copy Content'}
                   >
-                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                   </button>
 
                   <button

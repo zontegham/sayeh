@@ -189,19 +189,19 @@ export const IntegrationHub: React.FC<Props> = ({
   return (
     <div className="space-y-6">
       {/* Overview Banner */}
-      <div className="rounded-2xl border border-slate-800 bg-gradient-to-r from-slate-900/90 via-slate-900/50 to-blue-950/20 p-5 shadow-xl">
+      <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-gradient-to-r dark:from-slate-900/90 dark:via-slate-900/50 dark:to-blue-950/20 p-5 shadow-sm dark:shadow-xl transition-colors">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-400">
+          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/30 text-blue-600 dark:text-blue-400">
             <Layers className="w-6 h-6" />
           </div>
           <div>
-            <h1 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
               {lang === 'fa' ? 'هاب اتصال سامانه‌ها (Integration Hub)' : 'System Integration Hub'}
-              <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-500/20 text-blue-300 border border-blue-500/40">
+              <span className="text-xs px-2 py-0.5 rounded-full font-mono bg-blue-100 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-500/40">
                 AIR-BRIDGE
               </span>
             </h1>
-            <p className="text-xs text-slate-400 mt-1 max-w-3xl leading-relaxed">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-3xl leading-relaxed">
               {lang === 'fa'
                 ? 'پل ارتباطی برای اتصال سامانه‌های آنلاین (بانکی، ERP، سنسورهای اینترنت‌اشیاء، پایگاه‌های داده) به فرستنده نوری و سپس تحویل خودکار به سامانه‌های محلی ایزوله در سیستم مقصد.'
                 : 'Connect external online systems via REST/Webhooks to the optical transmitter, then dispatch scanned payloads to local offline enterprise databases.'}
@@ -211,21 +211,21 @@ export const IntegrationHub: React.FC<Props> = ({
       </div>
 
       {/* Conceptual Diagram */}
-      <div className="p-4 rounded-2xl bg-slate-900/50 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-mono">
-        <div className="flex items-center gap-2 text-cyan-300">
-          <Globe className="w-4 h-4 text-cyan-400" />
+      <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 flex flex-col md:flex-row items-center justify-between gap-4 text-xs font-mono transition-colors">
+        <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
+          <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
           <span>{lang === 'fa' ? 'سامانه آنلاین (ERP / API)' : 'Online External System'}</span>
         </div>
 
-        <div className="flex items-center gap-2 text-slate-400">
-          <ArrowLeftRight className="w-4 h-4 text-emerald-400" />
-          <span className="px-2 py-1 rounded bg-slate-800 border border-slate-700 text-emerald-300">
+        <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+          <ArrowLeftRight className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+          <span className="px-2 py-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-emerald-700 dark:text-emerald-300">
             {lang === 'fa' ? 'رمزنگاری AES-256 و تولید QR متحرک' : 'AES-256 + Optical Animated QR'}
           </span>
         </div>
 
-        <div className="flex items-center gap-2 text-purple-300">
-          <Server className="w-4 h-4 text-purple-400" />
+        <div className="flex items-center gap-2 text-purple-700 dark:text-purple-300">
+          <Server className="w-4 h-4 text-purple-600 dark:text-purple-400" />
           <span>{lang === 'fa' ? 'سامانه آفلاین (مقصد ایزوله)' : 'Offline Air-Gapped Database'}</span>
         </div>
       </div>
@@ -233,20 +233,20 @@ export const IntegrationHub: React.FC<Props> = ({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Inbound Online System Ingestion (Cols 6) */}
         <div className="lg:col-span-6 space-y-6">
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/70 backdrop-blur-xs p-5 shadow-lg space-y-4">
-            <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-              <span className="text-sm font-semibold text-white flex items-center gap-2">
-                <Globe className="w-4 h-4 text-cyan-400" />
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70 backdrop-blur-xs p-5 shadow-sm dark:shadow-lg space-y-4 transition-colors">
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800/80 pb-3">
+              <span className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <Globe className="w-4 h-4 text-cyan-600 dark:text-cyan-400" />
                 {lang === 'fa' ? '۱. اتصال به سامانه آنلاین (ورودی مبدا)' : '1. Inbound Connection (Online Source)'}
               </span>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/30">
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-cyan-100 dark:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 border border-cyan-200 dark:border-cyan-500/30">
                 REST / POLLING
               </span>
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-slate-300 font-medium block mb-1">
+                <label className="text-xs text-slate-700 dark:text-slate-300 font-medium block mb-1">
                   {lang === 'fa' ? 'آدرس وب‌سرویس یا API سامانه آنلاین:' : 'Online API / Webhook Endpoint:'}
                 </label>
                 <div className="flex gap-2">
@@ -255,7 +255,7 @@ export const IntegrationHub: React.FC<Props> = ({
                     value={inboundUrl}
                     onChange={(e) => setInboundUrl(e.target.value)}
                     dir="ltr"
-                    className="w-full rounded-xl bg-slate-950/80 border border-slate-800 px-3 py-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+                    className="w-full rounded-xl bg-slate-50 dark:bg-slate-950/80 border border-slate-300 dark:border-slate-800 px-3 py-2 text-xs font-mono text-cyan-700 dark:text-cyan-300 focus:outline-none focus:border-cyan-500"
                   />
                   <button
                     onClick={handleFetchOnline}

@@ -12,6 +12,8 @@ import { IntegrationHub } from './components/IntegrationHub';
 import { KeyVault } from './components/KeyVault';
 import { TransferHistory } from './components/TransferHistory';
 import { OfflinePwaExportModal } from './components/OfflinePwaExportModal';
+import { WorkflowWizardModal, WizardConfig } from './components/WorkflowWizardModal';
+import { useTheme } from './context/ThemeContext';
 import { 
   ShieldCheck, 
   HelpCircle, 
@@ -23,6 +25,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  const { theme } = useTheme();
   const [lang, setLang] = useState<Language>('fa');
   const [mode, setMode] = useState<AppMode>('transmitter');
   const [soundEnabled, setSoundEnabled] = useState<boolean>(true);
@@ -30,9 +33,13 @@ export default function App() {
     typeof navigator !== 'undefined' ? navigator.onLine : true
   );
 
+  // Step-by-Step Workflow Wizard (Opens automatically upon entry as requested)
+  const [isWizardOpen, setIsWizardOpen] = useState<boolean>(true);
+  const [wizardConfig, setWizardConfig] = useState<WizardConfig | null>(null);
+
   // Cross-component state
   const [injectedPayload, setInjectedPayload] = useState<string | null>(null);
-  const [activeKey, setActiveKey] = useState<string>('AirDiode#SecureKey2026!');
+  const [activeKey, setActiveKey] = useState<string>('Sayeh#SecureKey2026!');
   const [offlineForwardEndpoint, setOfflineForwardEndpoint] = useState<string>(
     'http://localhost:5000/api/airgap/ingest'
   );
@@ -44,7 +51,7 @@ export default function App() {
   // Audit Logs
   const [logs, setLogs] = useState<AuditLog[]>(() => {
     try {
-      const saved = localStorage.getItem('airdiode_audit_logs');
+      const saved = localStorage.getItem('sayeh_audit_logs') || localStorage.getItem('airdiode_audit_logs');
       if (saved) return JSON.parse(saved);
     } catch {}
     return [];
@@ -93,8 +100,20 @@ export default function App() {
     setMode('transmitter');
   };
 
+  const handleFinishWizard = (config: WizardConfig) => {
+    setWizardConfig(config);
+    setMode('transmitter');
+    if (config.outboundOfflineUrl) {
+      setOfflineForwardEndpoint(config.outboundOfflineUrl);
+    }
+    if (config.passphrase) {
+      setActiveKey(config.passphrase);
+    }
+    setIsWizardOpen(false);
+  };
+
   return (
-    <div className="min-h-screen flex flex-col bg-[#090d16] text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
+    <div className="min-h-screen flex flex-col bg-slate-100 dark:bg-[#090d16] text-slate-800 dark:text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-800 dark:selection:text-emerald-200 transition-colors duration-200">
       {/* Top Navigation */}
       <Navbar
         mode={mode}
@@ -104,6 +123,7 @@ export default function App() {
         soundEnabled={soundEnabled}
         setSoundEnabled={setSoundEnabled}
         isOnline={isOnline}
+        onOpenWizard={() => setIsWizardOpen(true)}
       />
 
       {/* Main Content Area */}
@@ -118,6 +138,8 @@ export default function App() {
               setSimulatedEnvelope(env);
               setMode('receiver');
             }}
+            wizardConfig={wizardConfig}
+            onOpenWizard={() => setIsWizardOpen(true)}
           />
         )}
 
@@ -162,14 +184,14 @@ export default function App() {
       </main>
 
       {/* Bottom Status / Footer Bar */}
-      <footer className="border-t border-slate-800/80 bg-slate-950/80 py-4 px-4 sm:px-6 text-xs text-slate-400">
+      <footer className="border-t border-slate-200 dark:border-slate-800/80 bg-white/95 dark:bg-slate-950/80 py-4 px-4 sm:px-6 text-xs text-slate-800 dark:text-slate-200 transition-colors">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-400 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded">
+            <span className="flex items-center gap-1.5 font-mono text-[11px] text-emerald-900 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/80 border border-emerald-300 dark:border-emerald-500/40 px-2 py-0.5 rounded font-bold">
               <ShieldCheck className="w-3.5 h-3.5" />
-              AIR-GAP OPTICAL DIODE ACTIVE
+              {lang === 'fa' ? 'سامانه سایه | انتقال نوری ایزوله فعال' : 'SAYEH | OPTICAL DIODE ACTIVE'}
             </span>
-            <span className="text-[11px] text-slate-500 hidden md:inline">
+            <span className="text-[11px] text-slate-700 dark:text-slate-300 hidden md:inline font-mono">
               | AES-256-GCM + Fountain QR Carousel
             </span>
           </div>
@@ -177,13 +199,13 @@ export default function App() {
           <div className="flex items-center gap-4 text-[11px]">
             <button
               onClick={() => setIsGuideOpen(true)}
-              className="flex items-center gap-1 text-slate-400 hover:text-cyan-300 transition cursor-pointer"
+              className="flex items-center gap-1 text-slate-800 dark:text-slate-200 hover:text-emerald-700 dark:hover:text-cyan-300 font-semibold transition cursor-pointer"
             >
               <HelpCircle className="w-3.5 h-3.5" />
               <span>{lang === 'fa' ? 'راهنمای راه‌اندازی در ویندوز و سیستم آفلاین' : 'Windows & Air-Gap Guide'}</span>
             </button>
 
-            <span className="text-slate-600 font-mono">v2.4.0</span>
+            <span className="text-slate-600 dark:text-slate-400 font-mono font-bold">v2.5.0</span>
           </div>
         </div>
       </footer>
@@ -193,6 +215,14 @@ export default function App() {
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
         lang={lang}
+      />
+
+      {/* Step-by-Step Workflow Onboarding Wizard Modal */}
+      <WorkflowWizardModal
+        isOpen={isWizardOpen}
+        onClose={() => setIsWizardOpen(false)}
+        lang={lang}
+        onFinishWizard={handleFinishWizard}
       />
     </div>
   );

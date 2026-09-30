@@ -1,13 +1,373 @@
 @import "tailwindcss";
 
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ==========================================================================
+   MANDATORY UNIFIED PRIMARY FONT: VAZIRMATN ACROSS ALL SECTIONS
+   یک فونت واحد (وزیرمتن) به صورت الزامی برای تمام بخش‌ها و عناصر سامانه
+   ========================================================================== */
+html,
+body,
+*,
+*::before,
+*::after,
+button,
+input,
+textarea,
+select,
+code,
+pre,
+kbd,
+samp,
+span,
+p,
+div,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+table,
+th,
+td,
+.font-mono,
+.font-sans,
+.font-serif {
+  font-family: 'Vazirmatn', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif !important;
+}
+
 @layer base {
   body {
-    font-family: 'Vazirmatn', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
-  
-  code, pre, .font-mono {
-    font-family: 'JetBrains Mono', monospace;
-  }
+}
+
+/* Base Light & Dark theme variables & behavior */
+:root {
+  color-scheme: light dark;
+}
+
+html.dark {
+  color-scheme: dark;
+}
+
+html.light {
+  color-scheme: light;
+}
+
+/* ==========================================================================
+   1. LIGHT THEME (تم روشن) - تمام متون باید تیره و کاملاً خوانا باشند
+   ========================================================================== */
+html:not(.dark) {
+  --app-bg: #f8fafc;
+  --app-text: #0f172a;
+}
+
+html:not(.dark) body {
+  background-color: #f8fafc;
+  color: #0f172a;
+}
+
+/* Light mode typography: Enforce deep dark text for maximum contrast & legibility */
+html:not(.dark) h1,
+html:not(.dark) h2,
+html:not(.dark) h3,
+html:not(.dark) h4,
+html:not(.dark) h5,
+html:not(.dark) h6 {
+  color: #020617 !important;
+}
+
+html:not(.dark) p,
+html:not(.dark) label,
+html:not(.dark) th,
+html:not(.dark) td {
+  color: #0f172a !important;
+}
+
+/* Light mode: Convert pastel and light text classes to dark, high-contrast readable colors */
+html:not(.dark) .text-white:not(button):not(button *):not([class*="bg-emerald-600"]):not([class*="bg-cyan-600"]):not([class*="bg-purple-600"]):not([class*="bg-emerald-500"]):not([class*="bg-cyan-500"]) {
+  color: #0f172a !important;
+}
+
+html:not(.dark) .text-slate-100,
+html:not(.dark) .text-slate-200,
+html:not(.dark) .text-slate-300 {
+  color: #1e293b !important;
+}
+
+html:not(.dark) .text-slate-400,
+html:not(.dark) .text-slate-500 {
+  color: #334155 !important;
+}
+
+html:not(.dark) .text-emerald-300,
+html:not(.dark) .text-emerald-400 {
+  color: #065f46 !important; /* Deep forest green */
+}
+
+html:not(.dark) .text-cyan-300,
+html:not(.dark) .text-cyan-400 {
+  color: #0e7490 !important; /* Deep dark cyan */
+}
+
+html:not(.dark) .text-amber-300,
+html:not(.dark) .text-amber-400 {
+  color: #92400e !important; /* Deep dark amber */
+}
+
+html:not(.dark) .text-purple-300,
+html:not(.dark) .text-purple-400 {
+  color: #6b21a8 !important; /* Deep dark purple */
+}
+
+/* Inputs & Form controls in Light Mode */
+html:not(.dark) input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+html:not(.dark) textarea,
+html:not(.dark) select {
+  background-color: #ffffff !important;
+  color: #0f172a !important;
+  border-color: #cbd5e1 !important;
+}
+
+html:not(.dark) input::placeholder,
+html:not(.dark) textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Card surfaces & panels in Light Mode */
+html:not(.dark) .bg-slate-900,
+html:not(.dark) .bg-slate-900\/70,
+html:not(.dark) .bg-slate-900\/80,
+html:not(.dark) .bg-slate-900\/90 {
+  background-color: #ffffff !important;
+  color: #0f172a;
+}
+
+html:not(.dark) .bg-slate-950,
+html:not(.dark) .bg-slate-950\/50,
+html:not(.dark) .bg-slate-950\/60,
+html:not(.dark) .bg-slate-950\/70,
+html:not(.dark) .bg-slate-950\/80,
+html:not(.dark) .bg-slate-950\/90 {
+  background-color: #f1f5f9 !important;
+  color: #0f172a;
+}
+
+html:not(.dark) .bg-\[\#090d16\],
+html:not(.dark) .bg-\[\#090d16\]\/90 {
+  background-color: #f8fafc !important;
+}
+
+html:not(.dark) .border-slate-800,
+html:not(.dark) .border-slate-800\/80,
+html:not(.dark) .border-slate-800\/60,
+html:not(.dark) .border-slate-700,
+html:not(.dark) .border-slate-700\/80 {
+  border-color: #cbd5e1 !important;
+}
+
+/* Buttons with bright backgrounds in Light Mode retain crisp white text */
+html:not(.dark) button.bg-emerald-600,
+html:not(.dark) button.bg-emerald-500,
+html:not(.dark) button.bg-cyan-600,
+html:not(.dark) button.bg-cyan-500,
+html:not(.dark) button.bg-purple-600,
+html:not(.dark) button.bg-amber-600,
+html:not(.dark) button.bg-rose-600,
+html:not(.dark) .bg-emerald-600,
+html:not(.dark) .bg-cyan-600,
+html:not(.dark) .bg-purple-600,
+html:not(.dark) [class*="bg-gradient-to-r from-emerald-"],
+html:not(.dark) [class*="bg-gradient-to-r from-cyan-"],
+html:not(.dark) [class*="bg-gradient-to-r from-purple-"],
+html:not(.dark) [class*="bg-gradient-to-r from-amber-"] {
+  color: #ffffff !important;
+}
+
+html:not(.dark) button.bg-emerald-600 *,
+html:not(.dark) button.bg-cyan-600 *,
+html:not(.dark) button.bg-purple-600 *,
+html:not(.dark) [class*="bg-gradient-to-r from-emerald-"] *,
+html:not(.dark) [class*="bg-gradient-to-r from-cyan-"] * {
+  color: #ffffff !important;
+}
+
+/* Secondary/gray buttons in Light Mode have dark text */
+html:not(.dark) button.bg-slate-100,
+html:not(.dark) button.bg-slate-200,
+html:not(.dark) button.bg-slate-800,
+html:not(.dark) button:not([class*="bg-emerald"]):not([class*="bg-cyan"]):not([class*="bg-purple"]):not([class*="bg-amber"]):not([class*="bg-rose"]):not([class*="gradient"]) {
+  color: #0f172a;
+}
+
+/* Light mode chips & status badges */
+html:not(.dark) .bg-emerald-950\/60,
+html:not(.dark) .bg-emerald-950\/80,
+html:not(.dark) .bg-emerald-950\/20 {
+  background-color: #ecfdf5 !important;
+  color: #065f46 !important;
+  border-color: #a7f3d0 !important;
+}
+
+html:not(.dark) .bg-cyan-950\/60,
+html:not(.dark) .bg-cyan-950\/80,
+html:not(.dark) .bg-cyan-950\/20 {
+  background-color: #ecfeff !important;
+  color: #155e75 !important;
+  border-color: #a5f3fc !important;
+}
+
+html:not(.dark) .bg-amber-950\/60,
+html:not(.dark) .bg-amber-950\/80,
+html:not(.dark) .bg-amber-950\/20 {
+  background-color: #fffbeb !important;
+  color: #92400e !important;
+  border-color: #fde68a !important;
+}
+
+html:not(.dark) .bg-purple-950\/60,
+html:not(.dark) .bg-purple-950\/80,
+html:not(.dark) .bg-purple-950\/20 {
+  background-color: #faf5ff !important;
+  color: #6b21a8 !important;
+  border-color: #e9d5ff !important;
+}
+
+
+/* ==========================================================================
+   2. DARK THEME (تم تاریک) - متن دکمه‌ها و تمام بخش‌ها باید کاملاً روشن و درخشان باشد
+   ========================================================================== */
+html.dark {
+  --app-bg: #090d16;
+  --app-text: #f8fafc;
+}
+
+html.dark body {
+  background-color: #090d16;
+  color: #f8fafc;
+}
+
+/* Dark mode typography: crisp, bright white headings and text */
+html.dark h1,
+html.dark h2,
+html.dark h3,
+html.dark h4,
+html.dark h5,
+html.dark h6 {
+  color: #ffffff !important;
+}
+
+/* All buttons in dark mode MUST have bright, readable text */
+html.dark button {
+  color: #ffffff;
+}
+
+html.dark button span {
+  color: inherit;
+}
+
+html.dark button.bg-slate-800,
+html.dark button.bg-slate-900,
+html.dark button.bg-slate-700 {
+  color: #f8fafc !important;
+}
+
+html.dark button.bg-slate-800 *,
+html.dark button.bg-slate-900 *,
+html.dark button.bg-slate-700 * {
+  color: #f8fafc !important;
+}
+
+/* Text across all sections in dark mode: bright and legible */
+html.dark p,
+html.dark label,
+html.dark td,
+html.dark th {
+  color: #e2e8f0;
+}
+
+html.dark .text-slate-300 {
+  color: #e2e8f0 !important;
+}
+
+html.dark .text-slate-400 {
+  color: #cbd5e1 !important; /* Bright silver gray, very easy to read on dark */
+}
+
+html.dark .text-slate-500 {
+  color: #94a3b8 !important;
+}
+
+/* Neon accents in dark mode are crisp & vibrant */
+html.dark .text-emerald-400 {
+  color: #34d399 !important;
+}
+html.dark .text-cyan-400 {
+  color: #22d3ee !important;
+}
+html.dark .text-amber-400 {
+  color: #fbbf24 !important;
+}
+html.dark .text-purple-400 {
+  color: #c084fc !important;
+}
+
+/* Inputs in dark mode */
+html.dark input,
+html.dark textarea,
+html.dark select {
+  background-color: #060911 !important;
+  color: #f8fafc !important;
+  border-color: #1e293b !important;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #64748b !important;
+}
+
+/* Selection colors */
+html.dark ::selection {
+  background-color: rgba(16, 185, 129, 0.4);
+  color: #ffffff;
+}
+html:not(.dark) ::selection {
+  background-color: rgba(16, 185, 129, 0.25);
+  color: #065f46;
+}
+
+/* Light mode scrollbar */
+html:not(.dark) ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html:not(.dark) ::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+html:not(.dark) ::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Dark mode scrollbar */
+html.dark ::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+html.dark ::-webkit-scrollbar-track {
+  background: #090d16;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: #334155;
 }
 
 @keyframes scan-beam {
@@ -41,18 +401,103 @@
   animation: pulse-glow 3s infinite ease-in-out;
 }
 
-/* Custom dark scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+/* ==========================================================================
+   FULLSCREEN PRESENTATION MODAL - ALWAYS PURE DARK THEATER MODE
+   Regardless of whether the app is in Light or Dark theme, the Fullscreen
+   presentation must ALWAYS have ultra-bright, white, crisp, glowing text
+   and buttons with maximum contrast for camera scanning and readability.
+   ========================================================================== */
+.fullscreen-presentation {
+  background-color: rgba(2, 6, 23, 0.98) !important;
 }
-::-webkit-scrollbar-track {
-  background: #090d16;
+
+/* Force bright, crisp white text on buttons inside fullscreen presentation */
+html:not(.dark) .fullscreen-presentation button,
+html.dark .fullscreen-presentation button,
+.fullscreen-presentation button {
+  color: #ffffff !important;
 }
-::-webkit-scrollbar-thumb {
-  background: #1e293b;
-  border-radius: 3px;
+
+html:not(.dark) .fullscreen-presentation button span,
+html.dark .fullscreen-presentation button span,
+.fullscreen-presentation button span {
+  color: #ffffff !important;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: #334155;
+
+html:not(.dark) .fullscreen-presentation button svg,
+html.dark .fullscreen-presentation button svg,
+.fullscreen-presentation button svg {
+  color: #ffffff !important;
+  stroke: #ffffff !important;
+}
+
+/* Status Pill in Fullscreen */
+html:not(.dark) .fullscreen-presentation .fs-status-pill,
+html.dark .fullscreen-presentation .fs-status-pill,
+.fullscreen-presentation .fs-status-pill {
+  background-color: #0b1120 !important;
+  border-color: #1e293b !important;
+  color: #34d399 !important; /* bright emerald-400 */
+}
+
+/* Control Pill Containers in Fullscreen */
+html:not(.dark) .fullscreen-presentation .fs-pill-container,
+html.dark .fullscreen-presentation .fs-pill-container,
+.fullscreen-presentation .fs-pill-container {
+  background-color: #0b1120 !important;
+  border-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+/* Inactive Pill Buttons */
+html:not(.dark) .fullscreen-presentation .fs-pill-btn-inactive,
+html.dark .fullscreen-presentation .fs-pill-btn-inactive,
+.fullscreen-presentation .fs-pill-btn-inactive {
+  background-color: transparent !important;
+  color: #e2e8f0 !important; /* slate-200 */
+}
+html:not(.dark) .fullscreen-presentation .fs-pill-btn-inactive:hover,
+html.dark .fullscreen-presentation .fs-pill-btn-inactive:hover,
+.fullscreen-presentation .fs-pill-btn-inactive:hover {
+  background-color: #1e293b !important;
+  color: #ffffff !important;
+}
+
+/* Active Pill Buttons (e.g. 16x active or 10fps active) */
+html:not(.dark) .fullscreen-presentation .fs-pill-btn-active-emerald,
+html.dark .fullscreen-presentation .fs-pill-btn-active-emerald,
+.fullscreen-presentation .fs-pill-btn-active-emerald {
+  background-color: #10b981 !important; /* emerald-500 */
+  color: #020617 !important; /* deep dark text on bright neon background */
+  font-weight: 800 !important;
+}
+
+html:not(.dark) .fullscreen-presentation .fs-pill-btn-active-cyan,
+html.dark .fullscreen-presentation .fs-pill-btn-active-cyan,
+.fullscreen-presentation .fs-pill-btn-active-cyan {
+  background-color: #06b6d4 !important; /* cyan-500 */
+  color: #020617 !important; /* deep dark text on bright neon background */
+  font-weight: 800 !important;
+}
+
+/* Bottom and Top Action Buttons (Skip, Downloads, Exit) */
+html:not(.dark) .fullscreen-presentation .fs-btn-dark,
+html.dark .fullscreen-presentation .fs-btn-dark,
+.fullscreen-presentation .fs-btn-dark {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+html:not(.dark) .fullscreen-presentation .fs-btn-dark:hover,
+html.dark .fullscreen-presentation .fs-btn-dark:hover,
+.fullscreen-presentation .fs-btn-dark:hover {
+  background-color: #334155 !important;
+  color: #ffffff !important;
+}
+
+html:not(.dark) .fullscreen-presentation .fs-btn-dark *,
+html.dark .fullscreen-presentation .fs-btn-dark *,
+.fullscreen-presentation .fs-btn-dark * {
+  color: #ffffff !important;
 }

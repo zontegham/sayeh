@@ -1,5 +1,7 @@
 export type Language = 'fa' | 'en';
 
+export type Theme = 'dark' | 'light';
+
 export type AppMode = 'transmitter' | 'receiver' | 'integrations' | 'keys' | 'history';
 
 export interface EncryptedEnvelope {
@@ -85,4 +87,16 @@ export interface AuditLog {
   sha256: string;
   timestamp: number;
   status: 'success' | 'tampered' | 'corrupt';
+}
+
+export interface QueueItem {
+  id: string;
+  name: string;
+  type: string;
+  size: number;
+  data: string; // Text or Base64 data
+  isBinary: boolean;
+  status: 'pending' | 'broadcasting' | 'completed';
+  createdAt: number;
+  priority?: number;
 }
