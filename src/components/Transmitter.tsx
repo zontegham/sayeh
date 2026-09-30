@@ -54,6 +54,7 @@ import {
   ScanLine,
   Target,
   Sun,
+  Inbox,
   X
 } from 'lucide-react';
 import { WizardConfig } from './WorkflowWizardModal';
@@ -80,22 +81,7 @@ export const Transmitter: React.FC<Props> = ({
 }) => {
   // Input Data States
   const [inputMode, setInputMode] = useState<'text' | 'file'>('text');
-  const [textContent, setTextContent] = useState<string>(
-    JSON.stringify(
-      {
-        source: 'Online-FinTech-Core',
-        status: 'AUTHORIZED',
-        transaction_id: 'TX-9824-IR',
-        amount_irr: 450000000,
-        currency: 'IRR',
-        beneficiary: 'IR880190000000123456789001',
-        security_token: 'SEC-DIODE-VALID-2026',
-        timestamp: new Date().toISOString(),
-      },
-      null,
-      2
-    )
-  );
+  const [textContent, setTextContent] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<{
     name: string;
     type: string;
@@ -163,31 +149,12 @@ export const Transmitter: React.FC<Props> = ({
   const [queue, setQueue] = useState<QueueItem[]>(() => {
     try {
       const saved = localStorage.getItem('sayeh_tx_queue');
-      if (saved) return JSON.parse(saved);
-    } catch {}
-    return [
-      {
-        id: 'tx-default-item-1',
-        name: 'سند مالی و تراکنش نمونه (TX-9824)',
-        type: 'application/json',
-        size: 320,
-        data: JSON.stringify(
-          {
-            transaction_id: 'TX-9824-IR',
-            amount_irr: 450000000,
-            currency: 'IRR',
-            beneficiary: 'IR880190000000123456789001',
-            security_token: 'SEC-DIODE-VALID-2026',
-            timestamp: new Date().toISOString(),
-          },
-          null,
-          2
-        ),
-        isBinary: false,
-        status: 'broadcasting',
-        createdAt: Date.now(),
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) return parsed;
       }
-    ];
+    } catch {}
+    return [];
   });
   const [activeQueueItemId, setActiveQueueItemId] = useState<string | null>(() => {
     return queue.length > 0 ? queue[0].id : null;
@@ -270,10 +237,48 @@ export const Transmitter: React.FC<Props> = ({
     setQueue((prev) => [...prev, newItem]);
   }, [textContent]);
 
-  // Clear entire queue
+  // Clear entire queue and reset to standby
   const handleClearQueue = useCallback(() => {
     setQueue([]);
     setActiveQueueItemId(null);
+    setTextContent('');
+    setSelectedFile(null);
+    setEnvelope(null);
+    setChunks([]);
+    setChunkSvgs([]);
+  }, []);
+
+  // Load demo sample payload on demand
+  const handleLoadDemoData = useCallback(() => {
+    const demoPayload = JSON.stringify(
+      {
+        source: 'Online-FinTech-Core',
+        status: 'AUTHORIZED',
+        transaction_id: 'TX-9824-IR',
+        amount_irr: 450000000,
+        currency: 'IRR',
+        beneficiary: 'IR880190000000123456789001',
+        security_token: 'SEC-DIODE-VALID-2026',
+        timestamp: new Date().toISOString(),
+      },
+      null,
+      2
+    );
+    setInputMode('text');
+    setTextContent(demoPayload);
+    setSelectedFile(null);
+    const demoItem: QueueItem = {
+      id: `demo-${Date.now()}`,
+      name: 'سند مالی و تراکنش نمونه (TX-9824)',
+      type: 'application/json',
+      size: 320,
+      data: demoPayload,
+      isBinary: false,
+      status: 'broadcasting',
+      createdAt: Date.now(),
+    };
+    setQueue([demoItem]);
+    setActiveQueueItemId(demoItem.id);
   }, []);
 
   // Delete individual queue item
@@ -582,13 +587,22 @@ export const Transmitter: React.FC<Props> = ({
           fileType: selectedFile.type,
           isBinary: true,
         };
-      } else {
+      } else if (inputMode === 'text' && textContent && textContent.trim()) {
         rawData = textContent;
         meta = {
           fileName: 'data.json',
           fileType: 'application/json',
           isBinary: false,
         };
+      }
+
+      // If no file or text is present, return early and keep transmitter in standby state
+      if (!rawData || !rawData.trim()) {
+        setEnvelope(null);
+        setChunks([]);
+        setChunkSvgs([]);
+        setIsProcessing(false);
+        return;
       }
 
       let env: EncryptedEnvelope;
@@ -1419,18 +1433,49 @@ export const Transmitter: React.FC<Props> = ({
               }}
               className="w-full mx-auto transition-all duration-200 flex flex-col items-center justify-center"
             >
-              {displayCount === 1 ? (
+              {chunks.length === 0 ? (
+                /* Standby State: No files or data in transmission queue */
+                <div className="w-full max-w-lg p-6 sm:p-8 rounded-3xl bg-slate-50 dark:bg-slate-900/60 border-2 border-dashed border-slate-300 dark:border-slate-800 flex flex-col items-center justify-center text-center space-y-4 my-4 animate-in fade-in select-none">
+                  <div className="w-16 h-16 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 flex items-center justify-center shadow-inner">
+                    <Inbox className="w-8 h-8" />
+                  </div>
+                  <div className="space-y-1">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white">
+                      {lang === 'fa' ? 'صف ارسال در حال حاضر خالی است' : 'Transmission Queue is Empty'}
+                    </h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm leading-relaxed">
+                      {lang === 'fa'
+                        ? 'هیچ فایلی یا متنی برای پخش کیوآرکد انتخاب نشده است. برای شروع انتقال نوری، فایلی را در صف قرار دهید یا متنی بنویسید.'
+                        : 'No files or payload selected for transmission. Upload files, type text, or load demo sample data to start.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                    <label className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-md transition">
+                      <FileUp className="w-4 h-4" />
+                      <span>{lang === 'fa' ? 'انتخاب و افزودن فایل به صف' : 'Add File to Queue'}</span>
+                      <input type="file" multiple className="hidden" onChange={handleFileChange} />
+                    </label>
+                    <button
+                      onClick={handleLoadDemoData}
+                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-bold text-xs cursor-pointer border border-slate-300 dark:border-slate-700 transition"
+                    >
+                      <Sparkles className="w-4 h-4 text-amber-500" />
+                      <span>{lang === 'fa' ? 'بارگذاری داده نمونه (Demo)' : 'Load Demo Data'}</span>
+                    </button>
+                  </div>
+                </div>
+              ) : displayCount === 1 ? (
                 /* Single QR View: Scales proportionally with qrScale */
                 <div 
                   style={{
                     width: `${Math.round(380 * (qrScale / 100))}px`,
                     maxWidth: '96vw',
                   }}
-                  className="relative p-5 sm:p-6 rounded-2xl bg-white shadow-2xl flex items-center justify-center aspect-square border-4 border-slate-300 dark:border-slate-700 transition-all duration-200"
+                  className="relative p-5 sm:p-6 rounded-2xl bg-white shadow-2xl flex items-center justify-center aspect-square border-4 border-slate-300 dark:border-slate-700 transition-all duration-200 overflow-hidden"
                 >
                   {chunkSvgs[activeChunkIndex] ? (
                     <div
-                      className="w-full h-full flex items-center justify-center select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:block"
+                      className="w-full h-full min-h-0 min-w-0 flex items-center justify-center select-none [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:aspect-square [&>svg]:object-contain [&>svg]:block [&>svg]:m-auto"
                       dangerouslySetInnerHTML={{ __html: chunkSvgs[activeChunkIndex] }}
                     />
                   ) : (
@@ -1455,12 +1500,12 @@ export const Transmitter: React.FC<Props> = ({
                       <div
                         key={slot.chunkIndex}
                         onClick={() => setFocusedChunkIndex(slot.chunkIndex)}
-                        className="group relative p-2 rounded-2xl bg-white shadow-md flex flex-col items-center justify-between aspect-square border-2 border-slate-300 dark:border-slate-700 transition-all hover:border-emerald-500 hover:shadow-xl hover:scale-[1.02] cursor-pointer"
+                        className="group relative p-1.5 sm:p-2 rounded-2xl bg-white shadow-md flex flex-col items-center justify-between aspect-square border-2 border-slate-300 dark:border-slate-700 transition-all hover:border-emerald-500 hover:shadow-xl hover:scale-[1.02] cursor-pointer overflow-hidden"
                         title={lang === 'fa' ? `کلیک برای فوکوس و بزرگ‌نمایی فریم #${slot.chunkIndex + 1}` : `Click to zoom & focus frame #${slot.chunkIndex + 1}`}
                       >
                         {/* Dedicated mini header bar above QR: zero overlap with QR quiet zone */}
-                        <div className="w-full flex items-center justify-between pb-1 px-1 text-[9px] sm:text-[10px] font-mono text-slate-700 border-b border-slate-100 select-none">
-                          <span className="font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-900">
+                        <div className="w-full shrink-0 flex items-center justify-between pb-0.5 px-1 text-[9px] sm:text-[10px] font-mono text-slate-700 border-b border-slate-100 select-none">
+                          <span className="font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded text-slate-900">
                             #{slot.chunkIndex + 1}
                           </span>
                           <span className="hidden sm:inline-flex items-center gap-0.5 text-[8px] text-emerald-700 group-hover:text-emerald-800 font-sans font-semibold">
@@ -1470,10 +1515,10 @@ export const Transmitter: React.FC<Props> = ({
                         </div>
 
                         {/* Unobstructed Pure White QR Matrix */}
-                        <div className="w-full flex-1 flex items-center justify-center p-1 select-none">
+                        <div className="w-full flex-1 min-h-0 min-w-0 flex items-center justify-center p-1 sm:p-1.5 overflow-hidden select-none">
                           {chunkSvgs[slot.chunkIndex] && (
                             <div
-                              className="w-full h-full flex items-center justify-center select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:block"
+                              className="w-full h-full min-h-0 min-w-0 flex items-center justify-center select-none [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:aspect-square [&>svg]:object-contain [&>svg]:block [&>svg]:m-auto"
                               dangerouslySetInnerHTML={{ __html: chunkSvgs[slot.chunkIndex] }}
                             />
                           )}
@@ -2095,6 +2140,39 @@ export const Transmitter: React.FC<Props> = ({
                   </div>
                 </div>
               </div>
+            ) : chunks.length === 0 ? (
+              /* Fullscreen Standby State */
+              <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-slate-900/90 border border-slate-800 flex flex-col items-center justify-center text-center space-y-4 my-auto select-none animate-in fade-in">
+                <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shadow-inner">
+                  <Inbox className="w-7 h-7" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-bold text-white">
+                    {lang === 'fa' ? 'صف ارسال در حال حاضر خالی است' : 'Transmission Queue is Empty'}
+                  </h3>
+                  <p className="text-xs text-slate-400 max-w-xs leading-relaxed">
+                    {lang === 'fa'
+                      ? 'هیچ فایلی برای پخش در تمام‌صفحه وجود ندارد. می‌توانید داده نمونه تستی را بارگذاری کنید یا تست کالیبراسیون را اجرا نمایید.'
+                      : 'No payload in queue. You can load demo sample data or run camera calibration test.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                  <button
+                    onClick={handleLoadDemoData}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs cursor-pointer shadow-md transition"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-300" />
+                    <span>{lang === 'fa' ? 'بارگذاری داده نمونه (Demo)' : 'Load Demo Data'}</span>
+                  </button>
+                  <button
+                    onClick={() => setIsCalibrationOpen(true)}
+                    className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-amber-400 border border-amber-500/40 font-bold text-xs cursor-pointer transition"
+                  >
+                    <Target className="w-4 h-4" />
+                    <span>{lang === 'fa' ? 'تست کالیبراسیون' : 'Calibration Test'}</span>
+                  </button>
+                </div>
+              </div>
             ) : (
               /* Standard Aspect-Ratio CSS Grid */
               <div
@@ -2118,13 +2196,13 @@ export const Transmitter: React.FC<Props> = ({
                       className={`relative w-full h-full aspect-square ${
                         displayCount === 1 
                           ? 'p-4 sm:p-8 rounded-3xl bg-white shadow-[0_0_120px_rgba(16,185,129,0.35)] border-4 border-slate-700' 
-                          : 'p-2 sm:p-3 rounded-2xl bg-white shadow-2xl border-2 border-slate-700'
-                      } flex flex-col items-center justify-between transition-all hover:border-emerald-500 cursor-pointer select-none group`}
+                          : 'p-1.5 sm:p-2.5 rounded-2xl bg-white shadow-2xl border-2 border-slate-700'
+                      } flex flex-col items-center justify-between transition-all hover:border-emerald-500 cursor-pointer select-none group overflow-hidden`}
                       title={lang === 'fa' ? `فریم #${slot.chunkIndex + 1} (کلیک برای فوکوس)` : `Frame #${slot.chunkIndex + 1} (Click to focus)`}
                     >
                       {displayCount > 1 && (
-                        <div className="w-full flex items-center justify-between pb-1 px-1 text-[10px] sm:text-xs font-mono text-slate-700 border-b border-slate-100 select-none">
-                          <span className="font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-900 shadow-2xs">
+                        <div className="w-full shrink-0 flex items-center justify-between pb-0.5 px-1 text-[10px] sm:text-xs font-mono text-slate-700 border-b border-slate-100 select-none">
+                          <span className="font-bold bg-slate-100 border border-slate-200 px-1.5 py-0.2 rounded text-slate-900 shadow-2xs">
                             #{slot.chunkIndex + 1}
                           </span>
                           <span className="text-[9px] text-slate-500 font-sans font-medium">
@@ -2132,10 +2210,10 @@ export const Transmitter: React.FC<Props> = ({
                           </span>
                         </div>
                       )}
-                      <div className="w-full flex-1 flex items-center justify-center p-1 select-none [&>svg]:w-full [&>svg]:h-full [&>svg]:block">
+                      <div className="w-full flex-1 min-h-0 min-w-0 flex items-center justify-center p-1 sm:p-1.5 overflow-hidden select-none">
                         {chunkSvgs[slot.chunkIndex] && (
                           <div
-                            className="w-full h-full flex items-center justify-center select-none"
+                            className="w-full h-full min-h-0 min-w-0 flex items-center justify-center select-none [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:aspect-square [&>svg]:object-contain [&>svg]:block [&>svg]:m-auto"
                             dangerouslySetInnerHTML={{ __html: chunkSvgs[slot.chunkIndex] }}
                           />
                         )}
@@ -2241,11 +2319,11 @@ export const Transmitter: React.FC<Props> = ({
             </div>
 
             {/* Giant High-Contrast Pure White QR Canvas */}
-            <div className="w-full flex items-center justify-center p-6 bg-white rounded-2xl shadow-inner border-2 border-slate-200 aspect-square">
-              <div className="w-full h-full max-w-[320px] max-h-[320px] aspect-square flex items-center justify-center [&>svg]:w-full [&>svg]:h-full [&>svg]:block">
+            <div className="w-full flex items-center justify-center p-4 sm:p-6 bg-white rounded-2xl shadow-inner border-2 border-slate-200 aspect-square overflow-hidden">
+              <div className="w-full h-full max-w-[320px] max-h-[320px] aspect-square flex items-center justify-center overflow-hidden">
                 {chunkSvgs[focusedChunkIndex] && (
                   <div
-                    className="w-full h-full flex items-center justify-center select-none"
+                    className="w-full h-full min-h-0 min-w-0 flex items-center justify-center select-none [&>svg]:max-w-full [&>svg]:max-h-full [&>svg]:w-auto [&>svg]:h-auto [&>svg]:aspect-square [&>svg]:object-contain [&>svg]:block [&>svg]:m-auto"
                     dangerouslySetInnerHTML={{ __html: chunkSvgs[focusedChunkIndex] }}
                   />
                 )}

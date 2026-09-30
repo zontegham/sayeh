@@ -285,8 +285,8 @@ export const WorkflowWizardModal: React.FC<Props> = ({
         <div className="border-b border-slate-200 dark:border-slate-800 pb-4 shrink-0">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
-                <Sparkles className="w-4 h-4" />
+              <div className="w-9 h-9 rounded-xl bg-white dark:bg-slate-800 border border-emerald-500/40 p-1 flex items-center justify-center shrink-0 shadow-sm">
+                <img src="/sayeh-logo.svg" alt="Sayeh Logo" className="w-full h-full object-contain" />
               </div>
               <div>
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
